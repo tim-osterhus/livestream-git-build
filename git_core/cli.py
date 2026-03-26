@@ -6,6 +6,8 @@ from __future__ import annotations
 import sys
 from typing import Callable, Sequence
 
+from init_cmd import run_init
+
 USAGE_TEXT = """usage: run_git <command> [<args>]
 
 Implemented command handlers in this phase:
@@ -59,8 +61,11 @@ def _deferred_phase_stub(command: str) -> int:
 
 
 def handle_init(args: Sequence[str]) -> int:
-    _ = args
-    return _not_implemented("init")
+    if args:
+        sys.stderr.write("run_git: init does not accept positional arguments.\n")
+        _print_usage(sys.stderr)
+        return 2
+    return run_init()
 
 
 def handle_hash_object(args: Sequence[str]) -> int:
