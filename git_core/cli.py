@@ -32,6 +32,7 @@ Implemented command handlers in this phase:
   branch
   checkout
   tag
+  merge
 """
 
 KNOWN_FLOOR_COMMANDS = {
@@ -46,6 +47,7 @@ KNOWN_FLOOR_COMMANDS = {
     "branch",
     "checkout",
     "tag",
+    "merge",
 }
 
 
@@ -116,6 +118,14 @@ def handle_tag(args: Sequence[str]) -> int:
     return run_tag(args)
 
 
+def handle_merge(args: Sequence[str]) -> int:
+    if len(args) != 1:
+        sys.stderr.write("run_git: merge expects exactly one branch target.\n")
+        _print_usage(sys.stderr)
+        return 2
+    return _not_implemented("merge")
+
+
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str]], int]] = {
     "init": handle_init,
     "hash-object": handle_hash_object,
@@ -128,6 +138,7 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str]], int]] = {
     "branch": handle_branch,
     "checkout": handle_checkout,
     "tag": handle_tag,
+    "merge": handle_merge,
 }
 
 
