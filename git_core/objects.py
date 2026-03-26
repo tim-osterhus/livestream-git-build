@@ -49,6 +49,8 @@ def write_loose_object(objects_dir: Path, object_id: str, serialized: bytes) -> 
         ) as tmp_file:
             tmp_file.write(compressed)
             temp_path = Path(tmp_file.name)
+        if target.exists():
+            return target
         os.replace(temp_path, target)
     finally:
         if temp_path is not None and temp_path.exists():
