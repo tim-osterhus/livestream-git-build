@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Iterable
 
-from index import IndexEntry
+from index import IndexEntry, require_regular_file_mode
 from objects import compute_object_id, write_loose_object
 
 
@@ -39,6 +39,8 @@ def _insert_entry(root: _TreeNode, entry: IndexEntry) -> None:
     parts = PurePosixPath(entry.path).parts
     if not parts:
         raise ValueError(f"invalid staged path '{entry.path}'")
+
+    require_regular_file_mode(entry.mode, entry.path)
 
     node = root
     for segment in parts[:-1]:

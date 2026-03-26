@@ -14,6 +14,7 @@ from typing import Iterable
 INDEX_FILE_NAME = "index"
 INDEX_HEADER = "RUNGIT_INDEX_V1"
 INDEX_ENTRY_PATTERN = re.compile(r"^(100644|100755) ([0-9a-f]{40})\t(.+)$")
+REGULAR_FILE_MODES = frozenset({"100644", "100755"})
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,19 @@ def index_file_path(git_dir: Path) -> Path:
     """Return the deterministic index file path for a repository."""
 
     return git_dir / INDEX_FILE_NAME
+
+
+def is_regular_file_mode(mode: str) -> bool:
+    """Return whether `mode` is a supported regular-file mode."""
+
+    return mode in REGULAR_FILE_MODES
+
+
+def require_regular_file_mode(mode: str, path: str) -> None:
+    """Raise when a staged entry mode is outside regular-file policy."""
+
+    if not is_regular_file_mode(mode):
+        raise ValueError(f"invalid staged mode '{mode}' for path '{path}'")
 
 
 def _validate_index_path(path: str) -> None:
@@ -61,8 +75,7 @@ def _normalize_entries(entries: Iterable[IndexEntry]) -> list[IndexEntry]:
     by_path: dict[str, IndexEntry] = {}
     for entry in entries:
         normalized_path = normalize_index_path(entry.path)
-        if entry.mode not in {"100644", "100755"}:
-            raise ValueError(f"invalid staged mode '{entry.mode}' for path '{entry.path}'")
+        require_regular_file_mode(entry.mode, entry.path)
         if len(entry.object_id) != 40 or not all(c in "0123456789abcdef" for c in entry.object_id):
             raise ValueError(f"invalid staged oid '{entry.object_id}' for path '{entry.path}'")
         by_path[normalized_path] = IndexEntry(
