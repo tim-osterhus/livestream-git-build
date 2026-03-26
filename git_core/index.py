@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic staged snapshot helpers persisted at `.git/index`."""
+"""Deterministic staged snapshot helpers persisted in a run_git sidecar file."""
 
 from __future__ import annotations
 
@@ -11,7 +11,8 @@ import re
 import tempfile
 from typing import Iterable
 
-INDEX_FILE_NAME = "index"
+INDEX_FILE_NAME = "run_git.index"
+LEGACY_INDEX_FILE_NAME = "index"
 INDEX_HEADER = "RUNGIT_INDEX_V1"
 INDEX_ENTRY_PATTERN = re.compile(r"^(100644|100755) ([0-9a-f]{40})\t(.+)$")
 REGULAR_FILE_MODES = frozenset({"100644", "100755"})
@@ -27,7 +28,7 @@ class IndexEntry:
 
 
 def index_file_path(git_dir: Path) -> Path:
-    """Return the deterministic index file path for a repository."""
+    """Return run_git's sidecar index path for a repository."""
 
     return git_dir / INDEX_FILE_NAME
 
@@ -86,17 +87,7 @@ def _normalize_entries(entries: Iterable[IndexEntry]) -> list[IndexEntry]:
     return sorted(by_path.values(), key=lambda item: item.path)
 
 
-def load_index(index_path: Path) -> list[IndexEntry]:
-    """Load index entries from disk. Missing index yields an empty snapshot."""
-
-    if not index_path.exists():
-        return []
-
-    try:
-        lines = index_path.read_text(encoding="utf-8").splitlines()
-    except UnicodeDecodeError as exc:
-        raise ValueError("index file is not valid UTF-8") from exc
-
+def _parse_index_lines(lines: list[str]) -> list[IndexEntry]:
     if not lines:
         raise ValueError("index file is empty")
     if lines[0] != INDEX_HEADER:
@@ -118,6 +109,33 @@ def load_index(index_path: Path) -> list[IndexEntry]:
         entries.append(IndexEntry(path=normalized_path, mode=mode, object_id=object_id))
 
     return sorted(entries, key=lambda item: item.path)
+
+
+def _read_index_text(path: Path) -> list[str]:
+    try:
+        return path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise ValueError("index file is not valid UTF-8") from exc
+
+
+def _legacy_index_path(index_path: Path) -> Path:
+    return index_path.parent / LEGACY_INDEX_FILE_NAME
+
+
+def load_index(index_path: Path) -> list[IndexEntry]:
+    """Load index entries from sidecar disk snapshot."""
+
+    if index_path.exists():
+        return _parse_index_lines(_read_index_text(index_path))
+
+    legacy_path = _legacy_index_path(index_path)
+    if not legacy_path.exists():
+        return []
+
+    legacy_prefix = f"{INDEX_HEADER}\n".encode("utf-8")
+    if not legacy_path.read_bytes().startswith(legacy_prefix):
+        return []
+    return _parse_index_lines(_read_index_text(legacy_path))
 
 
 def upsert_entries(existing: Iterable[IndexEntry], updates: Iterable[IndexEntry]) -> list[IndexEntry]:
@@ -150,3 +168,9 @@ def persist_index(index_path: Path, entries: Iterable[IndexEntry]) -> None:
     finally:
         if temp_path is not None and temp_path.exists():
             temp_path.unlink()
+
+    legacy_path = _legacy_index_path(index_path)
+    if legacy_path.exists():
+        legacy_prefix = f"{INDEX_HEADER}\n".encode("utf-8")
+        if legacy_path.read_bytes().startswith(legacy_prefix):
+            legacy_path.unlink()

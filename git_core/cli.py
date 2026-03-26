@@ -9,6 +9,7 @@ from typing import Callable, Sequence
 from add_cmd import run_add
 from branch_cmd import run_branch
 from cat_file_cmd import run_cat_file
+from checkout_cmd import run_checkout
 from commit_cmd import run_commit
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
@@ -25,12 +26,12 @@ Implemented command handlers in this phase:
   commit
   log
   branch
+  checkout
   tag
 
 Known command floor (pending later phases):
   status
   diff
-  checkout
 """
 
 KNOWN_FLOOR_COMMANDS = {
@@ -110,8 +111,7 @@ def handle_branch(args: Sequence[str]) -> int:
 
 
 def handle_checkout(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("checkout")
+    return run_checkout(args)
 
 
 def handle_tag(args: Sequence[str]) -> int:
