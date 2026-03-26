@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Mapping
 
-from objects import is_valid_object_id, read_object
+from objects import compute_object_id, is_valid_object_id, read_object, serialize_tree, write_loose_object
 
 _TREE_MODE = "40000"
 _BLOB_MODES = frozenset({"100644", "100755"})
@@ -20,6 +21,16 @@ class MergePathUnionResult:
 
     merged_entries: TreePathMap
     conflict_paths: tuple[str, ...]
+
+
+@dataclass
+class _TreeNode:
+    blobs: dict[str, tuple[str, str]]
+    children: dict[str, "_TreeNode"]
+
+
+def _new_tree_node() -> _TreeNode:
+    return _TreeNode(blobs={}, children={})
 
 
 def _parse_tree_entries(tree_body: bytes) -> list[tuple[str, str, str]]:
@@ -108,6 +119,64 @@ def load_tree_path_map(objects_dir: Path, tree_oid: str) -> TreePathMap:
     entries: dict[str, tuple[str, str]] = {}
     _collect_tree_paths(objects_dir, tree_oid, "", entries, set())
     return {path: entries[path] for path in sorted(entries)}
+
+
+def _entry_sort_key(mode: str, name: str) -> bytes:
+    suffix = "/" if mode == _TREE_MODE else ""
+    return f"{name}{suffix}".encode("utf-8")
+
+
+def _insert_path_entry(root: _TreeNode, path: str, mode: str, object_id: str) -> None:
+    if mode not in _BLOB_MODES:
+        raise ValueError(f"unsupported merged entry mode '{mode}'")
+    if not is_valid_object_id(object_id):
+        raise ValueError(f"merged entry has invalid object id for '{path}'")
+
+    parts = PurePosixPath(path).parts
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise ValueError(f"invalid merged path '{path}'")
+
+    node = root
+    for segment in parts[:-1]:
+        if segment in node.blobs:
+            raise ValueError(f"merged path conflict at '{path}'")
+        node = node.children.setdefault(segment, _new_tree_node())
+
+    leaf = parts[-1]
+    if leaf in node.children or leaf in node.blobs:
+        raise ValueError(f"merged path conflict at '{path}'")
+    node.blobs[leaf] = (mode, object_id)
+
+
+def _write_tree_node(objects_dir: Path, node: _TreeNode) -> str:
+    tree_entries: list[tuple[str, str, str]] = []
+
+    for name, child in node.children.items():
+        child_oid = _write_tree_node(objects_dir, child)
+        tree_entries.append((_TREE_MODE, name, child_oid))
+
+    for name, (mode, object_id) in node.blobs.items():
+        tree_entries.append((mode, name, object_id))
+
+    tree_entries.sort(key=lambda item: _entry_sort_key(item[0], item[1]))
+    serialized = serialize_tree(tree_entries)
+    tree_oid = compute_object_id(serialized)
+    write_loose_object(objects_dir, tree_oid, serialized)
+    return tree_oid
+
+
+def write_tree_from_path_map(
+    objects_dir: Path,
+    entries: Mapping[str, tuple[str, str]],
+) -> str:
+    """Write deterministic tree objects from `path -> (mode, oid)` entries."""
+
+    root = _new_tree_node()
+    for path in sorted(entries):
+        mode, object_id = entries[path]
+        _insert_path_entry(root, path, mode, object_id)
+
+    return _write_tree_node(objects_dir, root)
 
 
 def merge_non_conflicting_path_union(

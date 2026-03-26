@@ -12,7 +12,7 @@ import zlib
 from objects import CommitMetadata, read_commit_metadata, read_object
 from refs import read_head_commit_oid, resolve_merge_target_oid
 from repo import RepoPaths, discover_repo_paths
-from trees import load_tree_path_map, merge_non_conflicting_path_union
+from trees import load_tree_path_map, merge_non_conflicting_path_union, write_tree_from_path_map
 
 MERGE_USAGE = "usage: run_git merge <branch>\n"
 
@@ -29,6 +29,7 @@ class MergeParentInputs:
     target_tree_entries: dict[str, tuple[str, str]]
     merged_tree_entries: dict[str, tuple[str, str]]
     conflict_paths: tuple[str, ...]
+    merged_tree_oid: str
 
 
 def _print_usage(stream: object) -> None:
@@ -95,6 +96,13 @@ def _load_merge_parent_inputs(paths: RepoPaths, target_oid: str) -> MergeParentI
         current_tree_entries,
         target_tree_entries,
     )
+    try:
+        merged_tree_oid = write_tree_from_path_map(
+            paths.objects_dir,
+            union_result.merged_entries,
+        )
+    except (ValueError, OSError, RuntimeError):
+        raise ValueError("unable to serialize merged tree object") from None
 
     return MergeParentInputs(
         current_commit_oid=head_oid,
@@ -105,6 +113,7 @@ def _load_merge_parent_inputs(paths: RepoPaths, target_oid: str) -> MergeParentI
         target_tree_entries=target_tree_entries,
         merged_tree_entries=union_result.merged_entries,
         conflict_paths=union_result.conflict_paths,
+        merged_tree_oid=merged_tree_oid,
     )
 
 

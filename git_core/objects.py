@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+from typing import Iterable
 import tempfile
 import zlib
 
@@ -27,6 +28,28 @@ def serialize_blob(payload: bytes) -> bytes:
 
     header = b"blob " + str(len(payload)).encode("ascii") + b"\0"
     return header + payload
+
+
+def serialize_tree(entries: Iterable[tuple[str, str, str]]) -> bytes:
+    """Encode canonical Git tree bytes from `(mode, name, oid)` entries."""
+
+    chunks: list[bytes] = []
+    for mode, name, object_id in entries:
+        if not name or "/" in name or "\0" in name:
+            raise ValueError(f"invalid tree entry name '{name}'")
+        if not is_valid_object_id(object_id):
+            raise ValueError(f"invalid tree entry object id: {object_id}")
+        try:
+            mode_bytes = mode.encode("ascii")
+            name_bytes = name.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("tree entry encoding is invalid") from exc
+
+        chunks.append(mode_bytes + b" " + name_bytes + b"\0" + bytes.fromhex(object_id))
+
+    body = b"".join(chunks)
+    header = b"tree " + str(len(body)).encode("ascii") + b"\0"
+    return header + body
 
 
 def compute_object_id(serialized: bytes) -> str:
