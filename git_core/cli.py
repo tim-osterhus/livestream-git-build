@@ -14,6 +14,7 @@ from commit_cmd import run_commit
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
 from log_cmd import run_log
+from status_cmd import run_status
 from tag_cmd import run_tag
 
 USAGE_TEXT = """usage: run_git <command> [<args>]
@@ -25,12 +26,12 @@ Implemented command handlers in this phase:
   add
   commit
   log
+  status
   branch
   checkout
   tag
 
 Known command floor (pending later phases):
-  status
   diff
 """
 
@@ -97,8 +98,7 @@ def handle_log(args: Sequence[str]) -> int:
 
 
 def handle_status(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("status")
+    return run_status(args)
 
 
 def handle_diff(args: Sequence[str]) -> int:
