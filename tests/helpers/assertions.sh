@@ -24,6 +24,15 @@ assert_match() {
   fi
 }
 
+assert_equals() {
+  local expected="$1"
+  local actual="$2"
+  local label="$3"
+  if [[ "$actual" != "$expected" ]]; then
+    fail "expected $label to equal '$expected' but got '$actual'"
+  fi
+}
+
 assert_files_equal() {
   local lhs="$1"
   local rhs="$2"
