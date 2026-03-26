@@ -8,11 +8,10 @@ from pathlib import Path
 import re
 import sys
 import tempfile
-import time
 from typing import Sequence
 
 from index import index_file_path, load_index
-from objects import compute_object_id, is_valid_object_id, write_loose_object
+from objects import compute_object_id, is_valid_object_id, serialize_commit, write_loose_object
 from repo import discover_repo_paths
 from tree import write_tree_from_index
 
@@ -20,6 +19,9 @@ COMMIT_USAGE = "usage: run_git commit -m <message>\n"
 _HEAD_REF_PREFIX = "ref: "
 _LOCAL_HEAD_PREFIX = "refs/heads/"
 _COMMIT_DATE_PATTERN = re.compile(r"^\d+ [+-]\d{4}$")
+_DEFAULT_COMMITTER_NAME = "run_git"
+_DEFAULT_COMMITTER_EMAIL = "run_git@example.com"
+_DEFAULT_COMMITTER_DATE = "0 +0000"
 
 
 def _print_usage(stream: object) -> None:
@@ -66,39 +68,34 @@ def _resolve_parent_oid(ref_path: Path) -> str | None:
 
 
 def _resolve_identity(name_env: str, email_env: str, date_env: str) -> tuple[str, str, str]:
-    name = os.environ.get(name_env) or os.environ.get("GIT_COMMITTER_NAME") or "run_git"
-    email = os.environ.get(email_env) or os.environ.get("GIT_COMMITTER_EMAIL") or "run_git@example.com"
+    name = os.environ.get(name_env) or os.environ.get("GIT_COMMITTER_NAME") or _DEFAULT_COMMITTER_NAME
+    email = os.environ.get(email_env) or os.environ.get("GIT_COMMITTER_EMAIL") or _DEFAULT_COMMITTER_EMAIL
 
-    raw_date = os.environ.get(date_env)
+    raw_date = os.environ.get(date_env, "").strip()
     if raw_date and _COMMIT_DATE_PATTERN.fullmatch(raw_date):
         date_value = raw_date
     elif raw_date and raw_date.isdigit():
         date_value = f"{raw_date} +0000"
     else:
-        date_value = f"{int(time.time())} +0000"
+        date_value = _DEFAULT_COMMITTER_DATE
 
     return name, email, date_value
 
 
-def _serialize_commit_object(tree_oid: str, parent_oid: str | None, message: str) -> bytes:
+def _build_commit_object(tree_oid: str, parent_oid: str | None, message: str) -> bytes:
     author_name, author_email, author_date = _resolve_identity(
         "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE"
     )
     committer_name, committer_email, committer_date = _resolve_identity(
         "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE"
     )
-
-    lines = [f"tree {tree_oid}"]
-    if parent_oid is not None:
-        lines.append(f"parent {parent_oid}")
-    lines.append(f"author {author_name} <{author_email}> {author_date}")
-    lines.append(f"committer {committer_name} <{committer_email}> {committer_date}")
-    lines.append("")
-    lines.append(message)
-
-    body = ("\n".join(lines) + "\n").encode("utf-8")
-    header = b"commit " + str(len(body)).encode("ascii") + b"\0"
-    return header + body
+    return serialize_commit(
+        tree_oid,
+        parent_oid,
+        (author_name, author_email, author_date),
+        (committer_name, committer_email, committer_date),
+        message,
+    )
 
 
 def _persist_ref_atomic(ref_path: Path, object_id: str) -> None:
@@ -152,7 +149,7 @@ def run_commit(args: Sequence[str], cwd: str | Path | None = None) -> int:
         head_ref_path = repo_paths.git_dir / head_ref
         parent_oid = _resolve_parent_oid(head_ref_path)
         tree_oid = write_tree_from_index(repo_paths.objects_dir, staged_entries)
-        serialized = _serialize_commit_object(tree_oid, parent_oid, message)
+        serialized = _build_commit_object(tree_oid, parent_oid, message)
     except ValueError as exc:
         sys.stderr.write(f"run_git: commit: {exc}\n")
         return 1

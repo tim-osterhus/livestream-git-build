@@ -64,6 +64,36 @@ def write_loose_object(objects_dir: Path, object_id: str, serialized: bytes) -> 
     return target
 
 
+def serialize_commit(
+    tree_oid: str,
+    parent_oid: str | None,
+    author: tuple[str, str, str],
+    committer: tuple[str, str, str],
+    message: str,
+) -> bytes:
+    """Encode a canonical Git commit object payload."""
+
+    if not is_valid_object_id(tree_oid):
+        raise ValueError(f"invalid tree object id: {tree_oid}")
+    if parent_oid is not None and not is_valid_object_id(parent_oid):
+        raise ValueError(f"invalid parent object id: {parent_oid}")
+
+    author_name, author_email, author_date = author
+    committer_name, committer_email, committer_date = committer
+
+    lines = [f"tree {tree_oid}"]
+    if parent_oid is not None:
+        lines.append(f"parent {parent_oid}")
+    lines.append(f"author {author_name} <{author_email}> {author_date}")
+    lines.append(f"committer {committer_name} <{committer_email}> {committer_date}")
+    lines.append("")
+    lines.append(message)
+
+    body = ("\n".join(lines) + "\n").encode("utf-8")
+    header = b"commit " + str(len(body)).encode("ascii") + b"\0"
+    return header + body
+
+
 def is_valid_object_id(object_id: str) -> bool:
     """Return whether object_id is a lowercase 40-hex oid."""
 
