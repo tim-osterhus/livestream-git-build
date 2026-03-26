@@ -50,6 +50,14 @@ def _not_implemented(command: str) -> int:
     return 3
 
 
+def _deferred_phase_stub(command: str) -> int:
+    sys.stderr.write(
+        f"run_git: subcommand '{command}' is recognized but not implemented in this phase.\n"
+    )
+    _print_usage(sys.stderr)
+    return 2
+
+
 def handle_init(args: Sequence[str]) -> int:
     _ = args
     return _not_implemented("init")
@@ -65,10 +73,58 @@ def handle_cat_file(args: Sequence[str]) -> int:
     return _not_implemented("cat-file")
 
 
+def handle_add(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("add")
+
+
+def handle_commit(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("commit")
+
+
+def handle_log(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("log")
+
+
+def handle_status(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("status")
+
+
+def handle_diff(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("diff")
+
+
+def handle_branch(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("branch")
+
+
+def handle_checkout(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("checkout")
+
+
+def handle_tag(args: Sequence[str]) -> int:
+    _ = args
+    return _deferred_phase_stub("tag")
+
+
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str]], int]] = {
     "init": handle_init,
     "hash-object": handle_hash_object,
     "cat-file": handle_cat_file,
+    "add": handle_add,
+    "commit": handle_commit,
+    "log": handle_log,
+    "status": handle_status,
+    "diff": handle_diff,
+    "branch": handle_branch,
+    "checkout": handle_checkout,
+    "tag": handle_tag,
 }
 
 

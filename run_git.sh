@@ -21,7 +21,7 @@ case "$subcommand" in
   -h|--help|help)
     exec "$PYTHON_BIN" "$CLI_PY" --help
     ;;
-  init|hash-object|cat-file)
+  init|hash-object|cat-file|add|commit|log|status|diff|branch|checkout|tag)
     exec "$PYTHON_BIN" "$CLI_PY" "$subcommand" "$@"
     ;;
   *)
