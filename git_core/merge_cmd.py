@@ -126,9 +126,16 @@ def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
     try:
         target_oid = resolve_merge_target_oid(repo_paths, branch_name)
         _validate_commit_target(repo_paths, target_oid)
-        _merge_inputs = _load_merge_parent_inputs(repo_paths, target_oid)
+        merge_inputs = _load_merge_parent_inputs(repo_paths, target_oid)
     except ValueError as exc:
         sys.stderr.write(f"run_git: merge: {exc}\n")
+        return 1
+
+    if merge_inputs.conflict_paths:
+        conflict_list = ", ".join(merge_inputs.conflict_paths)
+        sys.stderr.write(
+            f"run_git: merge: conflict detected; aborting merge for path(s): {conflict_list}\n"
+        )
         return 1
 
     sys.stderr.write(
