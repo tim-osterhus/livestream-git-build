@@ -15,6 +15,7 @@ from diff_cmd import run_diff
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
 from log_cmd import run_log
+from merge_cmd import run_merge
 from status_cmd import run_status
 from tag_cmd import run_tag
 
@@ -123,7 +124,7 @@ def handle_merge(args: Sequence[str]) -> int:
         sys.stderr.write("run_git: merge expects exactly one branch target.\n")
         _print_usage(sys.stderr)
         return 2
-    return _not_implemented("merge")
+    return run_merge(args)
 
 
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str]], int]] = {

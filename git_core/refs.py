@@ -123,6 +123,21 @@ def read_branch_tip_by_name(paths: RepoPaths, branch_name: str) -> str | None:
     return read_branch_tip(paths.branch_ref_path(safe_name))
 
 
+def resolve_merge_target_oid(paths: RepoPaths, branch_name: str) -> str:
+    """Resolve `merge <branch>` target to a commit oid from `refs/heads/<branch>`."""
+
+    safe_name = _validate_ref_suffix(branch_name, "branch")
+    ref_name = f"{_LOCAL_HEAD_PREFIX}{safe_name}"
+    _validate_branch_ref_name(ref_name)
+
+    target_oid = read_branch_tip(paths.ref_path(ref_name))
+    if target_oid is None:
+        raise ValueError(
+            f"merge target branch '{safe_name}' was not found at '{ref_name}'"
+        )
+    return target_oid
+
+
 def read_tag_tip_by_name(paths: RepoPaths, tag_name: str) -> str | None:
     """Read tag tip by short tag name (for example `v0.1.0`)."""
 
