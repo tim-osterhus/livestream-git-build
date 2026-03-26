@@ -19,6 +19,21 @@ class RepoPaths:
     tags_dir: Path
     head_file: Path
 
+    def ref_path(self, ref_name: str) -> Path:
+        """Resolve a full git ref name (for example `refs/heads/main`) to disk path."""
+
+        return self.git_dir / ref_name
+
+    def branch_ref_path(self, branch_name: str) -> Path:
+        """Resolve a branch short name to `.git/refs/heads/<name>`."""
+
+        return self.heads_dir / branch_name
+
+    def tag_ref_path(self, tag_name: str) -> Path:
+        """Resolve a tag short name to `.git/refs/tags/<name>`."""
+
+        return self.tags_dir / tag_name
+
 
 def discover_repo_paths(cwd: str | Path | None = None) -> RepoPaths:
     """Resolve absolute repository paths from the given or current directory."""
