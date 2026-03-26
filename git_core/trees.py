@@ -3,12 +3,23 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 from objects import is_valid_object_id, read_object
 
 _TREE_MODE = "40000"
 _BLOB_MODES = frozenset({"100644", "100755"})
+TreePathMap = dict[str, tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class MergePathUnionResult:
+    """Deterministic path-union output for non-conflicting merge slices."""
+
+    merged_entries: TreePathMap
+    conflict_paths: tuple[str, ...]
 
 
 def _parse_tree_entries(tree_body: bytes) -> list[tuple[str, str, str]]:
@@ -88,7 +99,7 @@ def _collect_tree_paths(
     seen_tree_oids.remove(tree_oid)
 
 
-def load_tree_path_map(objects_dir: Path, tree_oid: str) -> dict[str, tuple[str, str]]:
+def load_tree_path_map(objects_dir: Path, tree_oid: str) -> TreePathMap:
     """Load tree entries recursively into a deterministic `path -> (mode, oid)` map."""
 
     if not is_valid_object_id(tree_oid):
@@ -97,3 +108,36 @@ def load_tree_path_map(objects_dir: Path, tree_oid: str) -> dict[str, tuple[str,
     entries: dict[str, tuple[str, str]] = {}
     _collect_tree_paths(objects_dir, tree_oid, "", entries, set())
     return {path: entries[path] for path in sorted(entries)}
+
+
+def merge_non_conflicting_path_union(
+    current_entries: Mapping[str, tuple[str, str]],
+    target_entries: Mapping[str, tuple[str, str]],
+) -> MergePathUnionResult:
+    """Merge disjoint paths and flag same-path entry mismatches as conflicts."""
+
+    merged_entries: dict[str, tuple[str, str]] = {}
+    conflict_paths: list[str] = []
+
+    for path in sorted(set(current_entries).union(target_entries)):
+        current_entry = current_entries.get(path)
+        target_entry = target_entries.get(path)
+
+        if current_entry is None:
+            if target_entry is None:
+                continue
+            merged_entries[path] = target_entry
+            continue
+        if target_entry is None:
+            merged_entries[path] = current_entry
+            continue
+        if current_entry == target_entry:
+            merged_entries[path] = current_entry
+            continue
+
+        conflict_paths.append(path)
+
+    return MergePathUnionResult(
+        merged_entries={path: merged_entries[path] for path in sorted(merged_entries)},
+        conflict_paths=tuple(conflict_paths),
+    )

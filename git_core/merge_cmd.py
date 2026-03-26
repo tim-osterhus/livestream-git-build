@@ -12,7 +12,7 @@ import zlib
 from objects import CommitMetadata, read_commit_metadata, read_object
 from refs import read_head_commit_oid, resolve_merge_target_oid
 from repo import RepoPaths, discover_repo_paths
-from trees import load_tree_path_map
+from trees import load_tree_path_map, merge_non_conflicting_path_union
 
 MERGE_USAGE = "usage: run_git merge <branch>\n"
 
@@ -27,6 +27,8 @@ class MergeParentInputs:
     target_commit: CommitMetadata
     current_tree_entries: dict[str, tuple[str, str]]
     target_tree_entries: dict[str, tuple[str, str]]
+    merged_tree_entries: dict[str, tuple[str, str]]
+    conflict_paths: tuple[str, ...]
 
 
 def _print_usage(stream: object) -> None:
@@ -89,6 +91,10 @@ def _load_merge_parent_inputs(paths: RepoPaths, target_oid: str) -> MergeParentI
     target_tree_entries = _read_tree_for_merge(
         paths, target_commit.tree_oid, "merge target commit"
     )
+    union_result = merge_non_conflicting_path_union(
+        current_tree_entries,
+        target_tree_entries,
+    )
 
     return MergeParentInputs(
         current_commit_oid=head_oid,
@@ -97,6 +103,8 @@ def _load_merge_parent_inputs(paths: RepoPaths, target_oid: str) -> MergeParentI
         target_commit=target_commit,
         current_tree_entries=current_tree_entries,
         target_tree_entries=target_tree_entries,
+        merged_tree_entries=union_result.merged_entries,
+        conflict_paths=union_result.conflict_paths,
     )
 
 
