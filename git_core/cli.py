@@ -11,6 +11,7 @@ from cat_file_cmd import run_cat_file
 from commit_cmd import run_commit
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
+from log_cmd import run_log
 
 USAGE_TEXT = """usage: run_git <command> [<args>]
 
@@ -20,10 +21,9 @@ Implemented command handlers in this phase:
   cat-file
   add
   commit
+  log
 
 Known command floor (pending later phases):
-  commit
-  log
   status
   diff
   branch
@@ -90,8 +90,7 @@ def handle_commit(args: Sequence[str]) -> int:
 
 
 def handle_log(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("log")
+    return run_log(args)
 
 
 def handle_status(args: Sequence[str]) -> int:

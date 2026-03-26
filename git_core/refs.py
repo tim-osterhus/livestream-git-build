@@ -72,6 +72,13 @@ def read_branch_tip(ref_path: Path) -> str | None:
     return value
 
 
+def read_head_commit_oid(head_path: Path, git_dir: Path) -> str | None:
+    """Resolve HEAD symbolic ref and return its current branch tip oid."""
+
+    head_ref = read_current_head_ref(head_path)
+    return read_branch_tip(git_dir / head_ref)
+
+
 def persist_ref_atomic(ref_path: Path, object_id: str) -> None:
     """Persist a branch ref update atomically with deterministic content."""
 
