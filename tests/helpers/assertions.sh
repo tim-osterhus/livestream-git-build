@@ -38,3 +38,15 @@ assert_files_equal() {
   local rhs="$2"
   cmp -s "$lhs" "$rhs" || fail "expected files to match: $lhs vs $rhs"
 }
+
+assert_word_count() {
+  local expected_count="$1"
+  local value="$2"
+  local label="$3"
+  local actual_count
+
+  actual_count="$(awk '{ print NF }' <<<"$value")"
+  if [[ "$actual_count" != "$expected_count" ]]; then
+    fail "expected $label to have $expected_count fields but got $actual_count ('$value')"
+  fi
+}
