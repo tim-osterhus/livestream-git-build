@@ -7,11 +7,13 @@ import sys
 from typing import Callable, Sequence
 
 from add_cmd import run_add
+from branch_cmd import run_branch
 from cat_file_cmd import run_cat_file
 from commit_cmd import run_commit
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
 from log_cmd import run_log
+from tag_cmd import run_tag
 
 USAGE_TEXT = """usage: run_git <command> [<args>]
 
@@ -22,13 +24,13 @@ Implemented command handlers in this phase:
   add
   commit
   log
+  branch
+  tag
 
 Known command floor (pending later phases):
   status
   diff
-  branch
   checkout
-  tag
 """
 
 KNOWN_FLOOR_COMMANDS = {
@@ -104,8 +106,7 @@ def handle_diff(args: Sequence[str]) -> int:
 
 
 def handle_branch(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("branch")
+    return run_branch(args)
 
 
 def handle_checkout(args: Sequence[str]) -> int:
@@ -114,8 +115,7 @@ def handle_checkout(args: Sequence[str]) -> int:
 
 
 def handle_tag(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("tag")
+    return run_tag(args)
 
 
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str]], int]] = {
