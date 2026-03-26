@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 
 from add_cmd import run_add
 from cat_file_cmd import run_cat_file
+from commit_cmd import run_commit
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
 
@@ -18,6 +19,7 @@ Implemented command handlers in this phase:
   hash-object
   cat-file
   add
+  commit
 
 Known command floor (pending later phases):
   commit
@@ -84,8 +86,7 @@ def handle_add(args: Sequence[str]) -> int:
 
 
 def handle_commit(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("commit")
+    return run_commit(args)
 
 
 def handle_log(args: Sequence[str]) -> int:
