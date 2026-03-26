@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import stat
 import sys
 from typing import Sequence
 
-from index import IndexEntry, index_file_path, load_index, persist_index, upsert_entries
+from index import IndexEntry, index_file_path, load_index, normalize_index_path, persist_index, upsert_entries
 from objects import compute_object_id, serialize_blob, write_loose_object
 from repo import RepoPaths, discover_repo_paths
 
@@ -29,8 +30,8 @@ def _print_usage(stream: object) -> None:
 
 
 def _resolve_input_path(path_arg: str, cwd: str | Path | None) -> Path:
-    base_dir = Path(cwd).resolve() if cwd is not None else Path.cwd()
-    return (base_dir / path_arg).resolve()
+    base_dir = Path(cwd).resolve() if cwd is not None else Path.cwd().resolve()
+    return Path(os.path.abspath(base_dir / path_arg))
 
 
 def _to_repo_relative(path: Path, repo_paths: RepoPaths, original_arg: str) -> str:
@@ -39,11 +40,9 @@ def _to_repo_relative(path: Path, repo_paths: RepoPaths, original_arg: str) -> s
     except ValueError as exc:
         raise ValueError(f"path '{original_arg}' is outside the repository root") from exc
 
-    relative_text = relative.as_posix()
+    relative_text = normalize_index_path(relative.as_posix())
     if relative_text in {"", "."}:
         raise ValueError(f"path '{original_arg}' does not reference a file")
-    if relative.parts and relative.parts[0] == ".git":
-        raise ValueError(f"path '{original_arg}' points inside .git")
 
     return relative_text
 
@@ -57,6 +56,10 @@ def _prepare_entry(path_arg: str, cwd: str | Path | None, repo_paths: RepoPaths)
 
     if not input_path.exists():
         raise ValueError(f"file not found: {path_arg}")
+
+    resolved_input = input_path.resolve()
+    if resolved_input != input_path:
+        raise ValueError(f"not a regular file: {path_arg}")
 
     file_stat = input_path.stat(follow_symlinks=False)
     if not stat.S_ISREG(file_stat.st_mode):

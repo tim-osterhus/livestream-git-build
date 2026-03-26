@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import posixpath
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
@@ -40,15 +41,35 @@ def _validate_index_path(path: str) -> None:
         raise ValueError("refusing to stage internal .git paths")
 
 
+def normalize_index_path(path: str) -> str:
+    """Normalize a staged path to canonical repo-relative POSIX form."""
+
+    if not path:
+        raise ValueError("invalid staged path ''")
+
+    normalized = posixpath.normpath(path)
+    if normalized in {"", "."} or normalized.startswith("/"):
+        raise ValueError(f"invalid staged path '{path}'")
+    if normalized == ".." or normalized.startswith("../"):
+        raise ValueError(f"invalid staged path '{path}'")
+
+    _validate_index_path(normalized)
+    return normalized
+
+
 def _normalize_entries(entries: Iterable[IndexEntry]) -> list[IndexEntry]:
     by_path: dict[str, IndexEntry] = {}
     for entry in entries:
-        _validate_index_path(entry.path)
+        normalized_path = normalize_index_path(entry.path)
         if entry.mode not in {"100644", "100755"}:
             raise ValueError(f"invalid staged mode '{entry.mode}' for path '{entry.path}'")
         if len(entry.object_id) != 40 or not all(c in "0123456789abcdef" for c in entry.object_id):
             raise ValueError(f"invalid staged oid '{entry.object_id}' for path '{entry.path}'")
-        by_path[entry.path] = entry
+        by_path[normalized_path] = IndexEntry(
+            path=normalized_path,
+            mode=entry.mode,
+            object_id=entry.object_id,
+        )
     return sorted(by_path.values(), key=lambda item: item.path)
 
 
@@ -77,11 +98,11 @@ def load_index(index_path: Path) -> list[IndexEntry]:
         if match is None:
             raise ValueError(f"malformed index entry: {line}")
         mode, object_id, path = match.groups()
-        _validate_index_path(path)
-        if path in seen_paths:
-            raise ValueError(f"duplicate index path '{path}'")
-        seen_paths.add(path)
-        entries.append(IndexEntry(path=path, mode=mode, object_id=object_id))
+        normalized_path = normalize_index_path(path)
+        if normalized_path in seen_paths:
+            raise ValueError(f"duplicate index path '{normalized_path}'")
+        seen_paths.add(normalized_path)
+        entries.append(IndexEntry(path=normalized_path, mode=mode, object_id=object_id))
 
     return sorted(entries, key=lambda item: item.path)
 
