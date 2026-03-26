@@ -3,16 +3,30 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 import sys
 from typing import Sequence
 import zlib
 
-from objects import read_object
-from refs import resolve_merge_target_oid
+from objects import CommitMetadata, read_commit_metadata, read_object
+from refs import read_head_commit_oid, resolve_merge_target_oid
 from repo import RepoPaths, discover_repo_paths
+from trees import load_tree_path_map
 
 MERGE_USAGE = "usage: run_git merge <branch>\n"
+
+
+@dataclass(frozen=True)
+class MergeParentInputs:
+    """Loaded merge-parent structures used by later merge phases."""
+
+    current_commit_oid: str
+    target_commit_oid: str
+    current_commit: CommitMetadata
+    target_commit: CommitMetadata
+    current_tree_entries: dict[str, tuple[str, str]]
+    target_tree_entries: dict[str, tuple[str, str]]
 
 
 def _print_usage(stream: object) -> None:
@@ -39,6 +53,53 @@ def _validate_commit_target(paths: RepoPaths, target_oid: str) -> None:
         raise ValueError(f"merge target '{target_oid}' is not a commit object")
 
 
+def _read_commit_for_merge(paths: RepoPaths, commit_oid: str, label: str) -> CommitMetadata:
+    try:
+        return read_commit_metadata(paths.objects_dir, commit_oid)
+    except FileNotFoundError:
+        raise ValueError(f"{label} commit object not found: {commit_oid}") from None
+    except (ValueError, OSError, RuntimeError, EOFError, zlib.error):
+        raise ValueError(f"unable to decode {label} commit object: {commit_oid}") from None
+
+
+def _read_tree_for_merge(
+    paths: RepoPaths,
+    tree_oid: str,
+    label: str,
+) -> dict[str, tuple[str, str]]:
+    try:
+        return load_tree_path_map(paths.objects_dir, tree_oid)
+    except FileNotFoundError:
+        raise ValueError(f"{label} tree object not found: {tree_oid}") from None
+    except (ValueError, OSError, RuntimeError, EOFError, zlib.error):
+        raise ValueError(f"unable to decode {label} tree object: {tree_oid}") from None
+
+
+def _load_merge_parent_inputs(paths: RepoPaths, target_oid: str) -> MergeParentInputs:
+    head_oid = read_head_commit_oid(paths.head_file, paths.git_dir)
+    if head_oid is None:
+        raise ValueError("HEAD does not point to a commit.")
+
+    current_commit = _read_commit_for_merge(paths, head_oid, "current HEAD")
+    target_commit = _read_commit_for_merge(paths, target_oid, "merge target")
+
+    current_tree_entries = _read_tree_for_merge(
+        paths, current_commit.tree_oid, "current HEAD commit"
+    )
+    target_tree_entries = _read_tree_for_merge(
+        paths, target_commit.tree_oid, "merge target commit"
+    )
+
+    return MergeParentInputs(
+        current_commit_oid=head_oid,
+        target_commit_oid=target_oid,
+        current_commit=current_commit,
+        target_commit=target_commit,
+        current_tree_entries=current_tree_entries,
+        target_tree_entries=target_tree_entries,
+    )
+
+
 def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
     """Resolve and validate merge target; merge semantics remain scaffolded."""
 
@@ -57,6 +118,7 @@ def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
     try:
         target_oid = resolve_merge_target_oid(repo_paths, branch_name)
         _validate_commit_target(repo_paths, target_oid)
+        _merge_inputs = _load_merge_parent_inputs(repo_paths, target_oid)
     except ValueError as exc:
         sys.stderr.write(f"run_git: merge: {exc}\n")
         return 1

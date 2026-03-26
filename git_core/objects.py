@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
@@ -11,6 +12,14 @@ import tempfile
 import zlib
 
 OBJECT_ID_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+
+
+@dataclass(frozen=True)
+class CommitMetadata:
+    """Parsed commit metadata required by merge/tree readers."""
+
+    tree_oid: str
+    parent_oids: tuple[str, ...]
 
 
 def serialize_blob(payload: bytes) -> bytes:
@@ -136,3 +145,54 @@ def read_object(objects_dir: Path, object_id: str) -> tuple[str, bytes]:
 
     serialized = read_loose_object(objects_dir, object_id)
     return decode_object(serialized)
+
+
+def parse_commit_metadata(body: bytes) -> CommitMetadata:
+    """Parse commit headers into validated tree/parent object ids."""
+
+    headers, separator, _ = body.partition(b"\n\n")
+    if not separator:
+        raise ValueError("commit missing header/message separator")
+
+    tree_oid: str | None = None
+    parent_oids: list[str] = []
+    for line in headers.split(b"\n"):
+        if line.startswith(b"tree "):
+            if tree_oid is not None:
+                raise ValueError("commit has multiple tree headers")
+            tree_value = line[len(b"tree ") :].strip()
+            try:
+                candidate = tree_value.decode("ascii")
+            except UnicodeDecodeError as exc:
+                raise ValueError("commit tree header is not valid ASCII") from exc
+            if not is_valid_object_id(candidate):
+                raise ValueError("commit tree header has invalid object id")
+            tree_oid = candidate
+            continue
+
+        if line.startswith(b"parent "):
+            parent_value = line[len(b"parent ") :].strip()
+            try:
+                parent_oid = parent_value.decode("ascii")
+            except UnicodeDecodeError as exc:
+                raise ValueError("commit parent header is not valid ASCII") from exc
+            if not is_valid_object_id(parent_oid):
+                raise ValueError("commit parent header has invalid object id")
+            parent_oids.append(parent_oid)
+
+    if tree_oid is None:
+        raise ValueError("commit is missing tree header")
+
+    return CommitMetadata(tree_oid=tree_oid, parent_oids=tuple(parent_oids))
+
+
+def read_commit_metadata(objects_dir: Path, object_id: str) -> CommitMetadata:
+    """Read a commit object and return validated merge-relevant metadata."""
+
+    if not is_valid_object_id(object_id):
+        raise ValueError(f"invalid object id: {object_id}")
+
+    kind, body = read_object(objects_dir, object_id)
+    if kind != "commit":
+        raise ValueError(f"object '{object_id}' is not a commit")
+    return parse_commit_metadata(body)
