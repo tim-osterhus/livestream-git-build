@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`merge` command implementation for phase-01 object/ref merge flow."""
+"""`merge` command implementation for phase-01/02 merge flow."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ from refs import (
 )
 from repo import RepoPaths, discover_repo_paths
 from trees import load_tree_path_map, merge_non_conflicting_path_union, write_tree_from_path_map
+from worktree import materialize_merge_worktree
 
 MERGE_USAGE = "usage: run_git merge <branch>\n"
 
@@ -160,6 +161,21 @@ def _write_merge_commit(
     return merge_commit_oid
 
 
+def _converge_merge_snapshot(
+    paths: RepoPaths,
+    merged_tree_entries: dict[str, tuple[str, str]],
+) -> None:
+    try:
+        materialize_merge_worktree(paths, merged_tree_entries)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise RuntimeError(f"unable to materialize merged working tree: {exc}") from exc
+
+    try:
+        persist_merge_index_snapshot(paths.git_dir, merged_tree_entries)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise RuntimeError(f"unable to persist merge index: {exc}") from exc
+
+
 def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
     """Run merge preflight, write merge objects, and advance current branch ref."""
 
@@ -203,9 +219,9 @@ def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
         return 1
 
     try:
-        persist_merge_index_snapshot(repo_paths.git_dir, merge_inputs.merged_tree_entries)
-    except (OSError, ValueError, RuntimeError) as exc:
-        sys.stderr.write(f"run_git: merge: unable to persist merge index: {exc}\n")
+        _converge_merge_snapshot(repo_paths, merge_inputs.merged_tree_entries)
+    except RuntimeError as exc:
+        sys.stderr.write(f"run_git: merge: {exc}\n")
         return 1
 
     sys.stderr.write(f"run_git: merge: updated current branch to {merge_commit_oid}\n")
