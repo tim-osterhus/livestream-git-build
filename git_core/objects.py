@@ -103,18 +103,45 @@ def serialize_commit(
     committer: tuple[str, str, str],
     message: str,
 ) -> bytes:
-    """Encode a canonical Git commit object payload."""
+    """Encode a canonical Git commit object payload (zero/one parent form)."""
+
+    parent_oids: tuple[str, ...]
+    if parent_oid is None:
+        parent_oids = ()
+    else:
+        parent_oids = (parent_oid,)
+
+    return serialize_commit_with_parents(
+        tree_oid=tree_oid,
+        parent_oids=parent_oids,
+        author=author,
+        committer=committer,
+        message=message,
+    )
+
+
+def serialize_commit_with_parents(
+    tree_oid: str,
+    parent_oids: Iterable[str],
+    author: tuple[str, str, str],
+    committer: tuple[str, str, str],
+    message: str,
+) -> bytes:
+    """Encode a canonical Git commit object payload with ordered parent headers."""
 
     if not is_valid_object_id(tree_oid):
         raise ValueError(f"invalid tree object id: {tree_oid}")
-    if parent_oid is not None and not is_valid_object_id(parent_oid):
-        raise ValueError(f"invalid parent object id: {parent_oid}")
+
+    ordered_parents = tuple(parent_oids)
+    for parent_oid in ordered_parents:
+        if not is_valid_object_id(parent_oid):
+            raise ValueError(f"invalid parent object id: {parent_oid}")
 
     author_name, author_email, author_date = author
     committer_name, committer_email, committer_date = committer
 
     lines = [f"tree {tree_oid}"]
-    if parent_oid is not None:
+    for parent_oid in ordered_parents:
         lines.append(f"parent {parent_oid}")
     lines.append(f"author {author_name} <{author_email}> {author_date}")
     lines.append(f"committer {committer_name} <{committer_email}> {committer_date}")

@@ -9,7 +9,15 @@ import sys
 from typing import Sequence
 import zlib
 
-from objects import CommitMetadata, read_commit_metadata, read_object
+from commit_cmd import _resolve_identity
+from objects import (
+    CommitMetadata,
+    compute_object_id,
+    read_commit_metadata,
+    read_object,
+    serialize_commit_with_parents,
+    write_loose_object,
+)
 from refs import read_head_commit_oid, resolve_merge_target_oid
 from repo import RepoPaths, discover_repo_paths
 from trees import load_tree_path_map, merge_non_conflicting_path_union, write_tree_from_path_map
@@ -117,6 +125,36 @@ def _load_merge_parent_inputs(paths: RepoPaths, target_oid: str) -> MergeParentI
     )
 
 
+def _build_merge_commit_payload(merge_inputs: MergeParentInputs, branch_name: str) -> bytes:
+    author_name, author_email, author_date = _resolve_identity(
+        "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE"
+    )
+    committer_name, committer_email, committer_date = _resolve_identity(
+        "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE"
+    )
+    return serialize_commit_with_parents(
+        tree_oid=merge_inputs.merged_tree_oid,
+        parent_oids=(
+            merge_inputs.current_commit_oid,
+            merge_inputs.target_commit_oid,
+        ),
+        author=(author_name, author_email, author_date),
+        committer=(committer_name, committer_email, committer_date),
+        message=f"Merge branch '{branch_name}'",
+    )
+
+
+def _write_merge_commit(
+    paths: RepoPaths,
+    merge_inputs: MergeParentInputs,
+    branch_name: str,
+) -> str:
+    serialized = _build_merge_commit_payload(merge_inputs, branch_name)
+    merge_commit_oid = compute_object_id(serialized)
+    write_loose_object(paths.objects_dir, merge_commit_oid, serialized)
+    return merge_commit_oid
+
+
 def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
     """Resolve and validate merge target; merge semantics remain scaffolded."""
 
@@ -147,7 +185,14 @@ def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
         )
         return 1
 
+    try:
+        merge_commit_oid = _write_merge_commit(repo_paths, merge_inputs, branch_name)
+    except (ValueError, OSError, RuntimeError) as exc:
+        sys.stderr.write(f"run_git: merge: unable to write merge commit: {exc}\n")
+        return 1
+
     sys.stderr.write(
-        "run_git: subcommand 'merge' handler is scaffolded but not implemented yet.\n"
+        "run_git: merge: wrote merge commit "
+        f"{merge_commit_oid}; ref update flow is scaffolded in this phase.\n"
     )
     return 3
