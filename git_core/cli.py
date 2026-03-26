@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Sequence
 
+from add_cmd import run_add
 from cat_file_cmd import run_cat_file
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
@@ -16,9 +17,9 @@ Implemented command handlers in this phase:
   init
   hash-object
   cat-file
+  add
 
 Known command floor (pending later phases):
-  add
   commit
   log
   status
@@ -79,8 +80,7 @@ def handle_cat_file(args: Sequence[str]) -> int:
 
 
 def handle_add(args: Sequence[str]) -> int:
-    _ = args
-    return _deferred_phase_stub("add")
+    return run_add(args)
 
 
 def handle_commit(args: Sequence[str]) -> int:
