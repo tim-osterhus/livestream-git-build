@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Sequence
 
+from hash_object_cmd import run_hash_object
 from init_cmd import run_init
 
 USAGE_TEXT = """usage: run_git <command> [<args>]
@@ -69,8 +70,7 @@ def handle_init(args: Sequence[str]) -> int:
 
 
 def handle_hash_object(args: Sequence[str]) -> int:
-    _ = args
-    return _not_implemented("hash-object")
+    return run_hash_object(args)
 
 
 def handle_cat_file(args: Sequence[str]) -> int:
