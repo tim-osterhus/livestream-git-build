@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`merge` command implementation (target resolution and validation slice)."""
+"""`merge` command implementation for phase-01 object/ref merge flow."""
 
 from __future__ import annotations
 
@@ -18,7 +18,11 @@ from objects import (
     serialize_commit_with_parents,
     write_loose_object,
 )
-from refs import read_head_commit_oid, resolve_merge_target_oid
+from refs import (
+    persist_current_head_ref_tip_atomic,
+    read_head_commit_oid,
+    resolve_merge_target_oid,
+)
 from repo import RepoPaths, discover_repo_paths
 from trees import load_tree_path_map, merge_non_conflicting_path_union, write_tree_from_path_map
 
@@ -156,7 +160,7 @@ def _write_merge_commit(
 
 
 def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
-    """Resolve and validate merge target; merge semantics remain scaffolded."""
+    """Run merge preflight, write merge objects, and advance current branch ref."""
 
     try:
         branch_name = _parse_merge_args(args)
@@ -191,8 +195,11 @@ def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
         sys.stderr.write(f"run_git: merge: unable to write merge commit: {exc}\n")
         return 1
 
-    sys.stderr.write(
-        "run_git: merge: wrote merge commit "
-        f"{merge_commit_oid}; ref update flow is scaffolded in this phase.\n"
-    )
-    return 3
+    try:
+        persist_current_head_ref_tip_atomic(repo_paths, merge_commit_oid)
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"run_git: merge: unable to update branch ref: {exc}\n")
+        return 1
+
+    sys.stderr.write(f"run_git: merge: updated current branch to {merge_commit_oid}\n")
+    return 0

@@ -168,6 +168,14 @@ def persist_ref_atomic(ref_path: Path, object_id: str) -> None:
     _persist_text_atomic(ref_path, f"{object_id}\n")
 
 
+def persist_current_head_ref_tip_atomic(paths: RepoPaths, object_id: str) -> Path:
+    """Persist the current symbolic HEAD branch ref to the provided object id."""
+
+    head_ref_path = resolve_head_ref_path(paths)
+    persist_ref_atomic(head_ref_path, object_id)
+    return head_ref_path
+
+
 def persist_head_symbolic_ref_atomic(head_path: Path, branch_ref: str) -> None:
     """Persist `HEAD` as a symbolic local branch ref atomically."""
 
