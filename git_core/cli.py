@@ -6,6 +6,7 @@ from __future__ import annotations
 import sys
 from typing import Callable, Sequence
 
+from cat_file_cmd import run_cat_file
 from hash_object_cmd import run_hash_object
 from init_cmd import run_init
 
@@ -74,8 +75,7 @@ def handle_hash_object(args: Sequence[str]) -> int:
 
 
 def handle_cat_file(args: Sequence[str]) -> int:
-    _ = args
-    return _not_implemented("cat-file")
+    return run_cat_file(args)
 
 
 def handle_add(args: Sequence[str]) -> int:
