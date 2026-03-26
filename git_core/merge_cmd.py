@@ -10,6 +10,7 @@ from typing import Sequence
 import zlib
 
 from commit_cmd import _resolve_identity
+from index import persist_merge_index_snapshot
 from objects import (
     CommitMetadata,
     compute_object_id,
@@ -199,6 +200,12 @@ def run_merge(args: Sequence[str], cwd: str | Path | None = None) -> int:
         persist_current_head_ref_tip_atomic(repo_paths, merge_commit_oid)
     except (OSError, ValueError) as exc:
         sys.stderr.write(f"run_git: merge: unable to update branch ref: {exc}\n")
+        return 1
+
+    try:
+        persist_merge_index_snapshot(repo_paths.git_dir, merge_inputs.merged_tree_entries)
+    except (OSError, ValueError, RuntimeError) as exc:
+        sys.stderr.write(f"run_git: merge: unable to persist merge index: {exc}\n")
         return 1
 
     sys.stderr.write(f"run_git: merge: updated current branch to {merge_commit_oid}\n")
