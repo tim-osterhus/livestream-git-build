@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
-CANDIDATE="$REPO_ROOT/staging/run_git.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+CANDIDATE="$REPO_ROOT/run_git.sh"
 
 # shellcheck source=staging/tests/helpers/assertions.sh
 source "$SCRIPT_DIR/helpers/assertions.sh"
